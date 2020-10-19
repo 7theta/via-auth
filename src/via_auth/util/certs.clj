@@ -1,6 +1,5 @@
 (ns via-auth.util.certs
-  (:import [io.undertow.server HttpServerExchange]
-           [io.undertow.util Headers]))
+  (:import [io.undertow.server HttpServerExchange]))
 
 (defn ring-request->certs
   [request]
