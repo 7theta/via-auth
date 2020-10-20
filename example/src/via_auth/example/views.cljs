@@ -11,5 +11,5 @@
       [:button {:on-click #(dispatch [:via-auth.example/logout])} [:font {:size "+1"} "Logout"]]
       [:br]
       [:div {:style {:margin-top "20px"}}
-       "Basic Auth Sub: " (str @(subscribe [:api.example/basic-auth-sub ::authenticated]))]]
+       "ID/Password Authenticated Sub: " (str @(subscribe [:api.example/id-password-auth-sub ::authenticated]))]]
      [:button {:on-click #(dispatch [:via-auth.example/login])} [:font {:size "+1"} "Login"]])])
