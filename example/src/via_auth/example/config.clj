@@ -4,8 +4,8 @@
             [integrant.core :as ig]))
 
 ;; before enabling https and/or mtls, run gencerts.sh in the resources directory
-(def enable-https? true)
-(def enable-mtls? true)
+(def enable-https? false)
+(def enable-mtls? false)
 
 (def config
   {:via/endpoint {}
