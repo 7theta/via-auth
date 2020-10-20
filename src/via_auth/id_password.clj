@@ -8,7 +8,7 @@
 ;;   the terms of this license.
 ;;   You must not remove this notice, or any others, from this software.
 
-(ns via-auth.basic
+(ns via-auth.id-password
   (:require [via.events :refer [reg-event-via]]
             [via.endpoint :as via]
             [signum.interceptors :refer [->interceptor]]
@@ -29,8 +29,8 @@
 
 (def default-secret (bn/random-bytes 32))
 
-(defmethod ig/init-key :via-auth/basic [_ {:keys [query-fn secret endpoint]
-                                           :or {secret default-secret}}]
+(defmethod ig/init-key :via-auth/id-password [_ {:keys [query-fn secret endpoint]
+                                                 :or {secret default-secret}}]
   (let [authenticator {:query-fn query-fn :secret secret :endpoint endpoint}
         sub-key (via/subscribe endpoint
                                {:connection-context-changed

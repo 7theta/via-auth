@@ -24,6 +24,6 @@
    :via-auth.example/user-store nil
    :via-auth.example/ring-handler {:via-handler (ig/ref :via/endpoint)}
 
-   :via-auth/basic
+   :via-auth/id-password
    {:endpoint (ig/ref :via/endpoint)
     :query-fn (ig/ref [:via-auth.example/user-store])}})
