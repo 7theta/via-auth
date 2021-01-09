@@ -15,7 +15,8 @@
             [buddy.hashers :as bh]
             [buddy.sign.jwt :as jwt]
             [buddy.core.nonce :as bn]
-            [tick.core :as t]
+            [tempus.core :as t]
+            [tempus.duration :as td]
             [integrant.core :as ig]))
 
 (declare validate-token authenticate)
@@ -35,7 +36,7 @@
         sub-key (via/subscribe endpoint
                                {:connection-context-changed
                                 (fn [connection-context]
-                                  (let [token (get-in connection-context [:via/authenticator :token])]
+                                  (let [token (get-in connection-context [:via-auth :token])]
                                     {:via/replace-tags
                                      (when-let [uid (:id (validate-token authenticator token))]
                                        #{uid})}))})
@@ -44,9 +45,9 @@
      #'interceptor
      (constantly
       (->interceptor
-       :id :via.authenticator/interceptor
+       :id :via-auth/interceptor
        :before (fn [context]
-                 (let [token (get-in context [:coeffects :client :connection-context :via/authenticator :token])]
+                 (let [token (get-in context [:coeffects :client :connection-context :via-auth :token])]
                    (if (validate-token authenticator token)
                      context
                      (assoc context
@@ -54,10 +55,10 @@
                             :effects {:via/status 403
                                       :via/reply {:error :invalid-token :token token}})))))))
     (reg-event-via
-     :via/id-password-login
+     :via-auth/id-password-login
      (fn [context [_ {:keys [id password]}]]
        (if-let [user (authenticate authenticator id password)]
-         {:via/merge-connection-context {:via/authenticator {:token (:token user)}}
+         {:via/merge-connection-context {:via-auth {:token (:token user)}}
           :via/reply user
           :via/status 200}
          {:via/reply {:error :invalid-credentials}
@@ -65,13 +66,13 @@
     (reg-event-via
      :via/logout
      (fn [context _]
-       {:via/merge-connection-context {:via/authenticator nil}
+       {:via/merge-connection-context {:via-auth nil}
         :via/reply true
         :via/status 200}))
     authenticator))
 
 
-(defmethod ig/halt-key! :via/authenticator
+(defmethod ig/halt-key! :via-auth/id-password
   [_ {:keys [sub-key endpoint]}]
   (via/dispose endpoint sub-key))
 
@@ -85,8 +86,7 @@
     (when-let [user (query-fn id)]
       (when (bh/check password (:password user))
         (let [user (dissoc user :password)]
-          (assoc user :token (jwt/encrypt (assoc user :exp (t/+ (t/now) (t/new-duration expiry :hours)))
-                                          secret)))))
+          (assoc user :token (jwt/encrypt (assoc user :exp (t/into :long (t/+ (t/now) (td/hours expiry)))) secret)))))
     (catch Exception _ nil)))
 
 (defn validate-token
