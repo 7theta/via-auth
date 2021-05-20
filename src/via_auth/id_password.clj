@@ -60,7 +60,7 @@
      :via.auth/id-password-login
      (fn [context [_ {:keys [id password]}]]
        (if-let [user (authenticate authenticator id password)]
-         {:via.session-context/merge {:via-auth {:token (:token user)}}
+         {:via.session-context/merge {:session-context {:via-auth {:token (:token user)}}}
           :via/reply {:status 200
                       :body user}}
          {:via/reply {:status 403
@@ -68,7 +68,7 @@
     (se/reg-event
      :via.auth/logout
      (fn [context _]
-       {:via.session-context/merge {:via-auth nil}
+       {:via.session-context/merge {:session-context {:via-auth nil}}
         :via/reply {:body true
                     :status 200}}))
     authenticator))
