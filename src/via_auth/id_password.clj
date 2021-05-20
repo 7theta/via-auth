@@ -41,6 +41,8 @@
                       (when-let [uid (:id (validate-token authenticator token))]
                         #{uid})})))
         authenticator (merge authenticator {:sub-key sub-key})]
+    (via/export-event endpoint :via.auth/id-password-login)
+    (via/export-event endpoint :via.auth/logout)
     (alter-var-root
      #'interceptor
      (constantly
@@ -55,7 +57,7 @@
                             :effects {:via/status 403
                                       :via/reply {:error :invalid-token :token token}})))))))
     (se/reg-event
-     :via-auth/id-password-login
+     :via.auth/id-password-login
      (fn [context [_ {:keys [id password]}]]
        (if-let [user (authenticate authenticator id password)]
          {:via.session-context/merge {:via-auth {:token (:token user)}}
@@ -64,7 +66,7 @@
          {:via/reply {:status 403
                       :body {:error :invalid-credentials}}})))
     (se/reg-event
-     :via/logout
+     :via.auth/logout
      (fn [context _]
        {:via.session-context/merge {:via-auth nil}
         :via/reply {:body true
