@@ -9,9 +9,9 @@
 ;;   You must not remove this notice, or any others, from this software.
 
 (ns via-auth.id-password
-  (:require [via.events :refer [reg-event-via]]
-            [via.endpoint :as via]
+  (:require [via.endpoint :as via]
             [signum.interceptors :refer [->interceptor]]
+            [signum.events :as se]
             [buddy.hashers :as bh]
             [buddy.sign.jwt :as jwt]
             [buddy.core.nonce :as bn]
@@ -33,48 +33,51 @@
 (defmethod ig/init-key :via-auth/id-password [_ {:keys [query-fn secret endpoint]
                                                  :or {secret default-secret}}]
   (let [authenticator {:query-fn query-fn :secret secret :endpoint endpoint}
-        sub-key (via/subscribe endpoint
-                               {:connection-context-changed
-                                (fn [connection-context]
-                                  (let [token (get-in connection-context [:via-auth :token])]
-                                    {:via/replace-tags
-                                     (when-let [uid (:id (validate-token authenticator token))]
-                                       #{uid})}))})
+        sub-key (via/add-event-listener
+                 endpoint :via.endpoint.session-context/change
+                 (fn [session-context]
+                   (let [token (get-in session-context [:via-auth :token])]
+                     {:via/replace-tags
+                      (when-let [uid (:id (validate-token authenticator token))]
+                        #{uid})})))
         authenticator (merge authenticator {:sub-key sub-key})]
+    (via/export-event endpoint :via.auth/id-password-login)
+    (via/export-event endpoint :via.auth/logout)
     (alter-var-root
      #'interceptor
      (constantly
       (->interceptor
        :id :via-auth/interceptor
        :before (fn [context]
-                 (let [token (get-in context [:coeffects :client :connection-context :via-auth :token])]
+                 (let [token (get-in context [:coeffects :client :session-context :via-auth :token])]
                    (if (validate-token authenticator token)
                      context
                      (assoc context
                             :queue []   ; Stop any further execution
-                            :effects {:via/status 403
-                                      :via/reply {:error :invalid-token :token token}})))))))
-    (reg-event-via
-     :via-auth/id-password-login
+                            :effects {:via/reply {:status 403
+                                                  :body {:error :invalid-token
+                                                         :token token}}})))))))
+    (se/reg-event
+     :via.auth/id-password-login
      (fn [context [_ {:keys [id password]}]]
        (if-let [user (authenticate authenticator id password)]
-         {:via/merge-connection-context {:via-auth {:token (:token user)}}
-          :via/reply user
-          :via/status 200}
-         {:via/reply {:error :invalid-credentials}
-          :via/status 403})))
-    (reg-event-via
-     :via/logout
+         {:via.session-context/merge {:session-context {:via-auth {:token (:token user)}}}
+          :via/reply {:status 200
+                      :body user}}
+         {:via/reply {:status 403
+                      :body {:error :invalid-credentials}}})))
+    (se/reg-event
+     :via.auth/logout
      (fn [context _]
-       {:via/merge-connection-context {:via-auth nil}
-        :via/reply true
-        :via/status 200}))
+       {:via.session-context/merge {:session-context {:via-auth nil}}
+        :via/reply {:body true
+                    :status 200}}))
     authenticator))
 
 
 (defmethod ig/halt-key! :via-auth/id-password
   [_ {:keys [sub-key endpoint]}]
-  (via/dispose endpoint sub-key))
+  (via/remove-event-listener endpoint :via.endpoint.session-context/change sub-key))
 
 (defn authenticate
   "Authenticates the user identified by `id` and `password` and returns a hash map
