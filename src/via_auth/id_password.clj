@@ -54,8 +54,9 @@
                      context
                      (assoc context
                             :queue []   ; Stop any further execution
-                            :effects {:via/status 403
-                                      :via/reply {:error :invalid-token :token token}})))))))
+                            :effects {:via/reply {:status 403
+                                                  :body {:error :invalid-token
+                                                         :token token}}})))))))
     (se/reg-event
      :via.auth/id-password-login
      (fn [context [_ {:keys [id password]}]]
