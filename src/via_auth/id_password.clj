@@ -17,7 +17,8 @@
             [buddy.core.nonce :as bn]
             [tempus.core :as t]
             [tempus.duration :as td]
-            [integrant.core :as ig]))
+            [integrant.core :as ig]
+            [signum.fx :as sfx]))
 
 (declare validate-token authenticate)
 
@@ -32,7 +33,9 @@
 
 (defmethod ig/init-key :via-auth/id-password [_ {:keys [query-fn secret endpoint]
                                                  :or {secret default-secret}}]
-  (let [authenticator {:query-fn query-fn :secret secret :endpoint endpoint}
+  (let [authenticator {:query-fn query-fn
+                       :secret secret
+                       :endpoint endpoint}
         sub-key (via/add-event-listener
                  endpoint :via.endpoint.session-context/change
                  (fn [session-context]
@@ -43,37 +46,35 @@
         authenticator (merge authenticator {:sub-key sub-key})]
     (via/export-event endpoint :via.auth/id-password-login)
     (via/export-event endpoint :via.auth/logout)
-    (alter-var-root
-     #'interceptor
-     (constantly
-      (->interceptor
-       :id :via-auth/interceptor
-       :before (fn [context]
-                 (let [token (get-in context [:coeffects :client :session-context :via-auth :token])]
-                   (if (validate-token authenticator token)
-                     context
-                     (assoc context
-                            :queue []   ; Stop any further execution
-                            :effects {:via/reply {:status 403
-                                                  :body {:error :invalid-token
-                                                         :token token}}})))))))
-    (se/reg-event
-     :via.auth/id-password-login
-     (fn [context [_ {:keys [id password]}]]
-       (if-let [user (authenticate authenticator id password)]
-         {:via.session-context/merge {:session-context {:via-auth {:token (:token user)}}}
-          :via/reply {:status 200
-                      :body user}}
-         {:via/reply {:status 403
-                      :body {:error :invalid-credentials}}})))
-    (se/reg-event
-     :via.auth/logout
-     (fn [context _]
-       {:via.session-context/merge {:session-context {:via-auth nil}}
-        :via/reply {:body true
-                    :status 200}}))
-    authenticator))
-
+    (let [interceptor (->interceptor
+                       :id :via-auth/interceptor
+                       :before (fn [context]
+                                 (let [token (get-in context [:coeffects :peer :session-context :via-auth :token])]
+                                   (if (validate-token authenticator token)
+                                     context
+                                     (assoc context
+                                            :queue [sfx/interceptor] ; Stop any further execution
+                                            :effects {:via/reply {:status 403
+                                                                  :body {:error :invalid-token
+                                                                         :token token}}})))))
+          authenticator (assoc authenticator :interceptor interceptor)]
+      (alter-var-root #'via-auth.id-password/interceptor (constantly interceptor))
+      (se/reg-event
+       :via.auth/id-password-login
+       (fn [context [_ {:keys [id password]}]]
+         (if-let [user (authenticate authenticator id password)]
+           {:via.session-context/merge {:session-context {:via-auth {:token (:token user)}}}
+            :via/reply {:status 200
+                        :body user}}
+           {:via/reply {:status 403
+                        :body {:error :invalid-credentials}}})))
+      (se/reg-event
+       :via.auth/logout
+       (fn [context _]
+         {:via.session-context/merge {:session-context {:via-auth nil}}
+          :via/reply {:body true
+                      :status 200}}))
+      authenticator)))
 
 (defmethod ig/halt-key! :via-auth/id-password
   [_ {:keys [sub-key endpoint]}]
