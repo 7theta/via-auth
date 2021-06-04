@@ -3,27 +3,14 @@
             [via-auth.example.subs]
             [integrant.core :as ig]))
 
-;; before enabling https and/or mtls, run gencerts.sh in the resources directory
-(def enable-https? false)
-(def enable-mtls? false)
-
 (def config
   {:via/endpoint {}
    :via/events {:endpoint (ig/ref :via/endpoint)}
    :via/subs {:endpoint (ig/ref :via/endpoint)}
-   :via/http-server (merge {:ring-handler (ig/ref :via-auth.example/ring-handler)}
-                           (when enable-https?
-                             {:https-port 3450
-                              :keystore (clojure.java.io/resource "server/identity.jks")
-                              :key-password "secret"})
-                           (when enable-mtls?
-                             {:truststore (clojure.java.io/resource "server/truststore.jks")
-                              :trust-password "secret"
-                              :client-auth :required}))
+   :via/http-server {:ring-handler (ig/ref :via-auth.example/ring-handler)}
 
    :via-auth.example/user-store nil
    :via-auth.example/ring-handler {:via-handler (ig/ref :via/endpoint)}
 
-   :via-auth/id-password
-   {:endpoint (ig/ref :via/endpoint)
-    :query-fn (ig/ref [:via-auth.example/user-store])}})
+   :via-auth/id-password {:endpoint (ig/ref :via/endpoint)
+                          :query-fn (ig/ref [:via-auth.example/user-store])}})
