@@ -8,7 +8,7 @@
 ;;   the terms of this license.
 ;;   You must not remove this notice, or any others, from this software.
 
-(defproject com.7theta/via-auth "0.3.0"
+(defproject com.7theta/via-auth "0.4.0"
   :description "Common authentication strategies for via"
   :url "https://github.com/7theta/via-auth"
   :license {:name "Eclipse Public License"
